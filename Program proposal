@@ -1,0 +1,98 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+const char* ssid = "Kucing Santo";
+const char* password = "kucingsanto2022";
+
+WebServer server(80);
+
+#define ECHO_PIN 16
+#define TRIGGER_PIN 17
+#define PUMP_PIN 13
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(TRIGGER_PIN, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+
+  lcd.begin();
+  lcd.backlight();
+
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting...");
+  }
+  Serial.println("Connected to WiFi");
+// Mengambil dan menampilkan alamat IP WiFi
+  IPAddress localIP = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(localIP);
+  server.on("/", handleRoot);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+
+  digitalWrite(TRIGGER_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIGGER_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  int distance = duration * 0.034 / 2;
+
+  if (distance < 15) {
+    digitalWrite(PUMP_PIN, HIGH);
+  } else {
+    digitalWrite(PUMP_PIN, LOW);
+  }
+  lcd.setCursor(0, 0);
+  lcd.print("KETINGIAN AIR");
+  lcd.setCursor(0, 1);
+  lcd.print("Distance: ");
+  lcd.print(distance);
+  lcd.print(" cm");
+}
+
+void handleRoot() {
+  String html = "<html><body>";
+  html += "<h1>Water Pump Controller</h1>";
+  html += "<p>Current distance from water surface: ";
+  html += getDistance();
+  html += " cm</p>";
+  html += "<p><a href=\"/on\">Turn Pump On</a></p>";
+  html += "<p><a href=\"/off\">Turn Pump Off</a></p>";
+  html += "</body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleOn() {
+  digitalWrite(PUMP_PIN, HIGH);
+  server.send(200, "text/plain", "Pump turned on");
+}
+
+void handleOff() {
+  digitalWrite(PUMP_PIN, LOW);
+  server.send(200, "text/plain", "Pump turned off");
+}
+
+int getDistance() {
+  digitalWrite(TRIGGER_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIGGER_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  int distance = duration * 0.034 / 2;
+  return distance;
+}
